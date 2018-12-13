@@ -18,10 +18,9 @@ router.get('/', async (req, res, next) => {
 /** give us a specific company's info */
 router.get('/:code', async (req, res, next) => {
   try {
-    const results = await db.query(
-      `SELECT * FROM companies WHERE code = '${req.params.code}'`
-    );
-    console.log(results.rows[0]);
+    const results = await db.query(`SELECT * FROM companies WHERE code = $1`, [
+      req.params.code
+    ]);
     if (results.rows.length === 0) {
       // no results - throw 404
       const error = new Error("Can't find yo stuff. Sorry. not sorry.");
@@ -35,6 +34,46 @@ router.get('/:code', async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+});
+
+/** deleting an existing company */
+router.delete('/:code', async (req, res, next) => {
+  try {
+    const code = req.params.code;
+    // sql for editing an existing company
+    const result = await db.query(
+      'DELETE FROM companies WHERE code=$1 RETURNING *',
+      [code]
+    );
+
+    // handles stuff when we can't find a company to edit
+    if (result.rows.length === 0) {
+      const error = new Error(
+        "Can't find your teapot to delete #*$&#($&#@ try again. Even a broken clock is right twice a day."
+      );
+      error.status = 418;
+      return next(error);
+    }
+
+    // good stuff happens here
+    return res.json({
+      message: 'Successfully deleted your company.',
+      company: result.rows[0]
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Error handling for validating company name and decs inputs */
+router.use((req, res, next) => {
+  if (!req.body.company.name || !req.body.company.description) {
+    const error = new Error(
+      'Hey! Send us proper stuff man. come on. (check your inputs)'
+    );
+    error.status = 404;
+    return next(error);
   }
 });
 
