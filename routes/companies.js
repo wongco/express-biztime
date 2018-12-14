@@ -18,19 +18,28 @@ router.get('/', async (req, res, next) => {
 /** give us a specific company's info */
 router.get('/:code', async (req, res, next) => {
   try {
-    const results = await db.query(`SELECT * FROM companies WHERE code = $1`, [
-      req.params.code
-    ]);
-    if (results.rows.length === 0) {
-      // no results - throw 404
+    const company_result = await db.query(
+      `SELECT * FROM companies WHERE code = $1`,
+      [req.params.code]
+    );
+
+    const invoice_result = await db.query(
+      `SELECT * FROM invoices WHERE comp_code = $1`,
+      [req.params.code]
+    );
+
+    if (company_result.rows.length === 0) {
+      // no company_result - throw 404
       const error = new Error("Can't find yo stuff. Sorry. not sorry.");
       error.status = 404;
       return next(error);
     }
 
+    company_result.rows[0].invoices = invoice_result.rows;
+
     // if good do this json stuff
     return res.json({
-      company: results.rows[0]
+      company: company_result.rows[0]
     });
   } catch (err) {
     next(err);

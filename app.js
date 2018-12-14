@@ -4,6 +4,7 @@ const express = require('express');
 const morgan = require('morgan');
 const app = express();
 const companiesRoutes = require('./routes/companies');
+const invoiceRoutes = require('./routes/invoices');
 
 // let express recognize json stuff
 app.use(express.json());
@@ -16,6 +17,7 @@ app.use(morgan('tiny'));
 
 // express router - routing for companies base url
 app.use('/companies', companiesRoutes);
+app.use('/invoices', invoiceRoutes);
 
 /** 404 handler */
 app.use(function(req, res, next) {
