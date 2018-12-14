@@ -1,56 +1,54 @@
 const express = require('express');
 const router = new express.Router();
-
+const APIError = require('../error');
 const db = require('../db');
 
 /** default relative router for companies */
 router.get('/', async (req, res, next) => {
   try {
-    const results = await db.query(`SELECT * FROM companies`);
+    const result = await db.query(`SELECT * FROM companies`);
     return res.json({
-      companies: results.rows
+      companies: result.rows
     });
-  } catch (err) {
-    return next(err);
+  } catch (error) {
+    return next(error);
   }
 });
 
 /** give us a specific company's info */
 router.get('/:code', async (req, res, next) => {
   try {
-    const company_result = await db.query(
+    const { code } = req.params;
+
+    const companyResult = await db.query(
       `SELECT * FROM companies WHERE code = $1`,
-      [req.params.code]
+      [code]
     );
 
-    const invoice_result = await db.query(
+    const invoiceResult = await db.query(
       `SELECT * FROM invoices WHERE comp_code = $1`,
-      [req.params.code]
+      [code]
     );
 
-    if (company_result.rows.length === 0) {
-      // no company_result - throw 404
-      const error = new Error("Can't find yo stuff. Sorry. not sorry.");
-      error.status = 404;
-      return next(error);
+    if (companyResult.rows.length === 0) {
+      throw new APIError("Can't find yo stuff. Sorry. not sorry.", 404);
     }
 
-    company_result.rows[0].invoices = invoice_result.rows;
+    companyResult.rows[0].invoices = invoiceResult.rows;
 
-    // if good do this json stuff
     return res.json({
-      company: company_result.rows[0]
+      company: companyResult.rows[0]
     });
-  } catch (err) {
-    return next(err);
+  } catch (error) {
+    return next(error);
   }
 });
 
 /** deleting an existing company */
 router.delete('/:code', async (req, res, next) => {
   try {
-    const code = req.params.code;
-    // sql for editing an existing company
+    const { code } = req.params;
+
     const result = await db.query(
       'DELETE FROM companies WHERE code=$1 RETURNING *',
       [code]
@@ -58,30 +56,41 @@ router.delete('/:code', async (req, res, next) => {
 
     // handles stuff when we can't find a company to edit
     if (result.rows.length === 0) {
-      const error = new Error(
-        "Can't find your teapot to delete #*$&#($&#@ try again. Even a broken clock is right twice a day."
+      throw new APIError(
+        "Can't find your company to delete. Please check your company code",
+        404
       );
-      error.status = 418;
-      return next(error);
     }
 
-    // good stuff happens here
     return res.json({
       message: 'Successfully deleted your company.',
       company: result.rows[0]
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    return next(error);
   }
 });
 
-/** Error handling for validating company name and decs inputs */
+/** Error handling for validating company key, nested name and decs inputs */
 router.use((req, res, next) => {
-  if (!req.body.company.name || !req.body.company.description) {
-    const error = new Error(
-      'Hey! Send us proper stuff man. come on. (check your inputs)'
-    );
-    error.status = 404;
+  try {
+    const { company } = req.body;
+    if (!company) {
+      throw new APIError(
+        'Hey! Check your nested inputs! (company key not found)',
+        404
+      );
+    }
+
+    const { name, description } = company;
+    if (!name || !description) {
+      throw new APIError(
+        'Hey! Check your nested inputs! (name or description incorrect)',
+        404
+      );
+    }
+    return next();
+  } catch (error) {
     return next(error);
   }
 });
@@ -89,62 +98,51 @@ router.use((req, res, next) => {
 /** handle adding a company */
 router.post('/', async (req, res, next) => {
   try {
-    // do sql query for inserting stuff - sanatize
-    const name = req.body.comapny.name;
-    const code = req.body.company.code;
-    const description = req.body.company.description;
+    const { code, name, description } = req.body.company;
 
-    const results = await db.query(
+    const result = await db.query(
       `INSERT INTO companies (code, name, description) VALUES($1, $2, $3) RETURNING *`,
       [code, name, description]
     );
-    // if good do this json stuff
     return res.json({
-      company: results.rows[0]
+      company: result.rows[0]
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    return next(error);
   }
 });
 
 /** edit a existing company */
 router.put('/:code', async (req, res, next) => {
   try {
-    // if code exists, throw error. don't provide code plz
-    if (req.body.company.code) {
-      // no results - throw 404
-      const error = new Error(
-        "Hey! Don't try to send us an updated comp code. Don't do it!@@@@@@@@@"
+    let { code } = req.body.company;
+    if (code) {
+      throw new APIError(
+        "Hey! Don't try to send us an updated comp code. Don't do it!@@@@@@@@@",
+        404
       );
-      error.status = 404;
-      return next(error);
     }
 
-    // do sql query for inserting stuff - sanatize
-    const code = req.params.code;
-    const name = req.body.company.name;
-    const description = req.body.company.description;
+    code = req.params.code;
+    const { name, description } = req.body.company;
 
-    // sql for editing an existing company
     const result = await db.query(
       `UPDATE companies SET name=$1, description=$2 WHERE code=$3 RETURNING *`,
       [name, description, code]
     );
 
-    // handles stuff when we can't find a company to edit
     if (result.rows.length === 0) {
-      const error = new Error(
-        "Can't find yo company to edit #*$&#($&#@ try again. Even a broken clock is right twice a day."
+      throw new APIError(
+        "Can't find your company to delete. Please check your company code",
+        404
       );
-      error.status = 404;
-      return next(error);
     }
 
     return res.json({
       company: result.rows[0]
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    return next(error);
   }
 });
 
