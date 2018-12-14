@@ -97,7 +97,7 @@ router.put('/:id', async (req, res, next) => {
       invoice: result.rows[0]
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 });
 
@@ -121,7 +121,7 @@ router.delete('/:id', async (req, res, next) => {
       invoice: result.rows[0]
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 });
 

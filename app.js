@@ -29,7 +29,6 @@ app.use(function(req, res, next) {
 });
 
 /** general error handler */
-
 app.use((err, req, res, next) => {
   res.status(err.status || 500);
 
