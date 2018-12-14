@@ -59,14 +59,39 @@ router.post('/', async function(req, res, next) {
 router.put('/:id', async (req, res, next) => {
   try {
     // do sql query for inserting stuff - sanatize
+    const isPaid = (await db.query(`SELECT paid FROM invoices WHERE id=$1`, [
+      req.params.id
+    ])).rows[0].paid;
+    console.log(isPaid, req.body.invoice.paid);
 
-    const { amt } = req.body.invoice;
+    // If you've paid, you cant pay again. If you haven't paid, or unpaid, you cant get refunded.
+    if (isPaid === req.body.invoice.paid) {
+      throw new APIError(
+        "You've already performed that operation.  Go get more coffee.",
+        403
+      );
+    }
+    const { amt, paid } = req.body.invoice;
+    let timeStamp;
+    if (isPaid) {
+      timeStamp = null;
+    } else {
+      let today = new Date();
+      let date =
+        today.getFullYear() +
+        '-' +
+        (today.getMonth() + 1) +
+        '-' +
+        today.getDate();
+      timeStamp = date;
+    }
 
     // sql for editing an existing company
     const result = await db.query(
-      `UPDATE invoices SET amt=$1 WHERE id=$2 RETURNING *`,
-      [amt, req.params.id]
+      `UPDATE invoices SET amt=$1, paid=$2, paid_date=$3 WHERE id=$4 RETURNING *`,
+      [amt, !isPaid, timeStamp, req.params.id]
     );
+    console.log('RESULT', result.rows);
     if (result.rows.length === 0) {
       throw new APIError('No invoice', 404);
     }

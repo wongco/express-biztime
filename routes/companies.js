@@ -42,7 +42,7 @@ router.get('/:code', async (req, res, next) => {
       company: company_result.rows[0]
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 });
 
