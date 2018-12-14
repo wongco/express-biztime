@@ -3,44 +3,20 @@ const router = new express.Router();
 const APIError = require('../error');
 const db = require('../db');
 
-router.get('/', async function(req, res, next) {
+/** default relative router for all invoices */
+router.get('/', async (req, res, next) => {
   try {
-    const results = await db.query(`SELECT id, comp_code FROM invoices`);
+    const result = await db.query(`SELECT id, comp_code FROM invoices`);
     return res.json({
-      invoices: results.rows
+      invoices: result.rows
     });
-  } catch (err) {
-    return next(err);
+  } catch (error) {
+    return next(error);
   }
 });
 
-router.get('/:id', async function(req, res, next) {
-  try {
-    const result = await db.query(
-      `SELECT * FROM invoices JOIN companies ON companies.code = invoices.comp_code WHERE $1=invoices.id`,
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      throw new APIError('No invoice', 404);
-    }
-
-    const { comp_code, ...invoice } = result.rows[0];
-    const { code, name, description } = invoice;
-    const company = { code, name, description };
-
-    return res.json({
-      invoice: {
-        ...invoice,
-        company
-      }
-    });
-  } catch (err) {
-    return next(err);
-  }
-});
-
-router.post('/', async function(req, res, next) {
+/** route for adding a new invoice */
+router.post('/', async (req, res, next) => {
   try {
     const { comp_code, amt } = req.body.invoice;
     const result = await db.query(
@@ -56,44 +32,65 @@ router.post('/', async function(req, res, next) {
   }
 });
 
+/** route for specific invoice detail */
+router.get('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `SELECT * FROM invoices JOIN companies ON companies.code = invoices.comp_code WHERE $1=invoices.id`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new APIError('Specified invoice does not exist.', 404);
+    }
+
+    // destructure result into desired format for JSON
+    const { comp_code, ...invoice } = result.rows[0];
+    const { code, name, description } = invoice;
+    const company = { code, name, description };
+
+    return res.json({
+      invoice: {
+        ...invoice,
+        company
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/** route for modifiying specific invoice */
 router.put('/:id', async (req, res, next) => {
   try {
-    // do sql query for inserting stuff - sanatize
+    const { id } = req.params;
+
+    // check if status of targetd invoice is paid or unpaid
     const isPaid = (await db.query(`SELECT paid FROM invoices WHERE id=$1`, [
-      req.params.id
+      id
     ])).rows[0].paid;
-    console.log(isPaid, req.body.invoice.paid);
+
+    const { amt, paid } = req.body.invoice;
 
     // If you've paid, you cant pay again. If you haven't paid, or unpaid, you cant get refunded.
-    if (isPaid === req.body.invoice.paid) {
+    if (isPaid === paid) {
       throw new APIError(
         "You've already performed that operation.  Go get more coffee.",
         403
       );
     }
-    const { amt, paid } = req.body.invoice;
-    let timeStamp;
-    if (isPaid) {
-      timeStamp = null;
-    } else {
-      let today = new Date();
-      let date =
-        today.getFullYear() +
-        '-' +
-        (today.getMonth() + 1) +
-        '-' +
-        today.getDate();
-      timeStamp = date;
-    }
 
-    // sql for editing an existing company
+    // if isPaid is true, set time stamp to null, otherwise set to current time
+    const timeStamp = isPaid ? null : new Date();
+
     const result = await db.query(
       `UPDATE invoices SET amt=$1, paid=$2, paid_date=$3 WHERE id=$4 RETURNING *`,
-      [amt, !isPaid, timeStamp, req.params.id]
+      [amt, !isPaid, timeStamp, id]
     );
-    console.log('RESULT', result.rows);
+
     if (result.rows.length === 0) {
-      throw new APIError('No invoice', 404);
+      throw new APIError('Specified invoice does not exist.', 404);
     }
 
     return res.json({
@@ -104,6 +101,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
+/** route for deleting a specific invoice */
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -113,9 +111,8 @@ router.delete('/:id', async (req, res, next) => {
       [id]
     );
 
-    // handles stuff when we can't find a company to edit
     if (result.rows.length === 0) {
-      throw new APIError('No invoice', 404);
+      throw new APIError('Specified invoice does not exist.', 404);
     }
 
     // good stuff happens here
